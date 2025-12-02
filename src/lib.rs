@@ -15,8 +15,8 @@ use report::{EntryReport, EntryStatus, Report};
 /// Minimum title similarity to trust a DOI/arXiv ID lookup result
 const MIN_TITLE_SIMILARITY_FOR_ID_LOOKUP: f64 = 0.75;
 use validators::{
-    arxiv::ArxivClient, crossref::CrossRefClient, dblp::DblpClient,
-    openalex::OpenAlexClient, semantic::SemanticScholarClient, Validator, ValidatorError,
+    arxiv::ArxivClient, crossref::CrossRefClient, dblp::DblpClient, openalex::OpenAlexClient,
+    openlibrary::OpenLibraryClient, semantic::SemanticScholarClient, Validator, ValidatorError,
 };
 
 use futures::{stream, StreamExt};
@@ -31,6 +31,7 @@ pub struct ValidatorConfig {
     pub use_arxiv: bool,
     pub use_semantic: bool,
     pub use_openalex: bool,
+    pub use_openlibrary: bool,
     pub cache_enabled: bool,
 }
 
@@ -42,6 +43,7 @@ impl Default for ValidatorConfig {
             use_arxiv: true,
             use_semantic: true,
             use_openalex: true,
+            use_openlibrary: true,
             cache_enabled: true,
         }
     }
@@ -54,6 +56,7 @@ pub struct BibValidator {
     arxiv: Option<ArxivClient>,
     semantic: Option<SemanticScholarClient>,
     openalex: Option<OpenAlexClient>,
+    openlibrary: Option<OpenLibraryClient>,
     cache: Cache,
 }
 
@@ -84,6 +87,11 @@ impl BibValidator {
             },
             openalex: if config.use_openalex {
                 Some(OpenAlexClient::new())
+            } else {
+                None
+            },
+            openlibrary: if config.use_openlibrary {
+                Some(OpenLibraryClient::new())
             } else {
                 None
             },
@@ -237,6 +245,21 @@ impl BibValidator {
                             let discrepancies = compare_entries(entry, matched);
                             validation_results.push(ValidationResult {
                                 source: ApiSource::OpenAlex,
+                                matched_entry: Some(matched.clone()),
+                                confidence,
+                                discrepancies,
+                            });
+                        }
+                    }
+                }
+
+                // Try Open Library (good for older books)
+                if let Some(ref client) = self.openlibrary {
+                    if let Ok(results) = client.search_by_title(title).await {
+                        if let Some((matched, confidence)) = find_best_match(entry, &results) {
+                            let discrepancies = compare_entries(entry, matched);
+                            validation_results.push(ValidationResult {
+                                source: ApiSource::OpenLibrary,
                                 matched_entry: Some(matched.clone()),
                                 confidence,
                                 discrepancies,

@@ -4,6 +4,7 @@ pub mod arxiv;
 pub mod crossref;
 pub mod dblp;
 pub mod openalex;
+pub mod openlibrary;
 pub mod semantic;
 
 use crate::entry::Entry;
