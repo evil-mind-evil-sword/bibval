@@ -29,6 +29,10 @@ struct Args {
     #[arg(long)]
     no_semantic: bool,
 
+    /// Disable OpenAlex API
+    #[arg(long)]
+    no_openalex: bool,
+
     /// Disable caching of API responses
     #[arg(long)]
     no_cache: bool,
@@ -96,6 +100,7 @@ async fn main() -> ExitCode {
         use_dblp: !args.no_dblp,
         use_arxiv: !args.no_arxiv,
         use_semantic: !args.no_semantic,
+        use_openalex: !args.no_openalex,
         cache_enabled: !args.no_cache,
     };
 

@@ -10,13 +10,14 @@ use entry::{ApiSource, Entry, ValidationResult};
 use matcher::{compare_entries, find_best_match};
 use report::{EntryReport, EntryStatus, Report};
 use validators::{
-    arxiv::ArxivClient, crossref::CrossRefClient, dblp::DblpClient, semantic::SemanticScholarClient,
-    Validator, ValidatorError,
+    arxiv::ArxivClient, crossref::CrossRefClient, dblp::DblpClient,
+    openalex::OpenAlexClient, semantic::SemanticScholarClient, Validator, ValidatorError,
 };
 
+use futures::{stream, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
-use std::time::Duration;
-use tokio::time::sleep;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Configuration for the validator
 pub struct ValidatorConfig {
@@ -24,6 +25,7 @@ pub struct ValidatorConfig {
     pub use_dblp: bool,
     pub use_arxiv: bool,
     pub use_semantic: bool,
+    pub use_openalex: bool,
     pub cache_enabled: bool,
 }
 
@@ -34,6 +36,7 @@ impl Default for ValidatorConfig {
             use_dblp: true,
             use_arxiv: true,
             use_semantic: true,
+            use_openalex: true,
             cache_enabled: true,
         }
     }
@@ -45,6 +48,7 @@ pub struct BibValidator {
     dblp: Option<DblpClient>,
     arxiv: Option<ArxivClient>,
     semantic: Option<SemanticScholarClient>,
+    openalex: Option<OpenAlexClient>,
     cache: Cache,
 }
 
@@ -73,15 +77,23 @@ impl BibValidator {
             } else {
                 None
             },
+            openalex: if config.use_openalex {
+                Some(OpenAlexClient::new())
+            } else {
+                None
+            },
             cache,
         })
     }
 
     /// Validate a list of entries and return a report
     pub async fn validate(&self, entries: Vec<Entry>) -> Report {
-        let mut report = Report::new();
+        const CONCURRENCY_LIMIT: usize = 20;
 
-        let pb = ProgressBar::new(entries.len() as u64);
+        let total = entries.len() as u64;
+        let progress = Arc::new(AtomicU64::new(0));
+
+        let pb = ProgressBar::new(total);
         pb.set_style(
             ProgressStyle::default_bar()
                 .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
@@ -89,19 +101,26 @@ impl BibValidator {
                 .progress_chars("#>-"),
         );
 
-        for entry in entries {
-            pb.set_message(format!("Validating [{}]", entry.key));
-
-            let entry_report = self.validate_entry(&entry).await;
-            report.add(entry_report);
-
-            pb.inc(1);
-
-            // Small delay to be respectful to APIs
-            sleep(Duration::from_millis(100)).await;
-        }
+        let results: Vec<EntryReport> = stream::iter(entries)
+            .map(|entry| {
+                let progress = Arc::clone(&progress);
+                async move {
+                    let report = self.validate_entry(&entry).await;
+                    progress.fetch_add(1, Ordering::Relaxed);
+                    report
+                }
+            })
+            .buffer_unordered(CONCURRENCY_LIMIT)
+            .inspect(|_| pb.inc(1))
+            .collect()
+            .await;
 
         pb.finish_with_message("Done!");
+
+        let mut report = Report::new();
+        for entry_report in results {
+            report.add(entry_report);
+        }
         report
     }
 
@@ -183,9 +202,6 @@ impl BibValidator {
                     }
                 }
 
-                // Small delay between requests
-                sleep(Duration::from_millis(200)).await;
-
                 // Try Semantic Scholar
                 if let Some(ref client) = self.semantic {
                     if let Ok(results) = client.search_by_title(title).await {
@@ -193,6 +209,21 @@ impl BibValidator {
                             let discrepancies = compare_entries(entry, matched);
                             validation_results.push(ValidationResult {
                                 source: ApiSource::SemanticScholar,
+                                matched_entry: Some(matched.clone()),
+                                confidence,
+                                discrepancies,
+                            });
+                        }
+                    }
+                }
+
+                // Try OpenAlex
+                if let Some(ref client) = self.openalex {
+                    if let Ok(results) = client.search_by_title(title).await {
+                        if let Some((matched, confidence)) = find_best_match(entry, &results) {
+                            let discrepancies = compare_entries(entry, matched);
+                            validation_results.push(ValidationResult {
+                                source: ApiSource::OpenAlex,
                                 matched_entry: Some(matched.clone()),
                                 confidence,
                                 discrepancies,
