@@ -23,9 +23,16 @@ pub struct Cache {
 
 impl Cache {
     pub fn new(enabled: bool) -> Result<Self, CacheError> {
-        let cache_dir = dirs::cache_dir()
-            .unwrap_or_else(|| PathBuf::from(".cache"))
-            .join("biblatex-validator");
+        let base_dir = dirs::cache_dir().unwrap_or_else(|| PathBuf::from(".cache"));
+        let preferred = base_dir.join("bibval");
+        let legacy = base_dir.join("biblatex-validator");
+
+        // Prefer the new path, but continue to use legacy if it already exists
+        let cache_dir = if legacy.exists() && !preferred.exists() {
+            legacy
+        } else {
+            preferred
+        };
 
         if enabled {
             fs::create_dir_all(&cache_dir).map_err(CacheError::CreateDir)?;
@@ -36,8 +43,8 @@ impl Cache {
 
     /// Generate a cache key from the API name and query
     fn cache_key(&self, api: &str, query: &str) -> PathBuf {
-        // Use a simple hash of the query to avoid filesystem issues
-        let hash = format!("{:x}", md5_hash(query));
+        // Use a stable hash of the query to avoid filesystem issues and ensure repeatability
+        let hash = blake3_hash(query);
         self.cache_dir.join(format!("{}_{}.json", api, hash))
     }
 
@@ -90,13 +97,9 @@ impl Cache {
     }
 }
 
-/// Simple hash function for cache keys
-fn md5_hash(s: &str) -> u64 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut hasher = DefaultHasher::new();
-    s.hash(&mut hasher);
-    hasher.finish()
+/// Simple hash function for cache keys (stable across runs)
+fn blake3_hash(s: &str) -> String {
+    blake3::hash(s.as_bytes()).to_hex().to_string()
 }
 
 #[cfg(test)]
@@ -124,5 +127,21 @@ mod tests {
         let retrieved: Option<TestData> = cache.get("test_api", "query");
 
         assert_eq!(retrieved, Some(data));
+    }
+
+    #[test]
+    fn cache_keys_are_stable() {
+        let dir = tempdir().unwrap();
+        let cache = Cache {
+            cache_dir: dir.path().to_path_buf(),
+            enabled: true,
+        };
+
+        let first = cache.cache_key("api", "query");
+        let second = cache.cache_key("api", "query");
+        let different = cache.cache_key("api", "other");
+
+        assert_eq!(first, second);
+        assert_ne!(first, different);
     }
 }
