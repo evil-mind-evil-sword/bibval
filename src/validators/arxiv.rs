@@ -4,7 +4,7 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 use reqwest::Client;
 
-const ARXIV_API_BASE: &str = "http://export.arxiv.org/api/query";
+const ARXIV_API_BASE: &str = "https://export.arxiv.org/api/query";
 
 pub struct ArxivClient {
     client: Client,

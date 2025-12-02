@@ -1,5 +1,6 @@
 use super::{async_trait, Validator, ValidatorError};
 use crate::entry::Entry;
+use chrono::{DateTime, Datelike, Utc};
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -123,10 +124,9 @@ impl Note {
 
         // Extract year from creation date (milliseconds since epoch)
         if let Some(cdate) = self.creation_date {
-            let seconds = cdate / 1000;
-            // Simple year extraction: seconds since 1970
-            let years_since_1970 = seconds / (365 * 24 * 60 * 60);
-            entry.year = Some(1970 + years_since_1970 as i32);
+            if let Some(timestamp) = DateTime::<Utc>::from_timestamp_millis(cdate) {
+                entry.year = Some(timestamp.year());
+            }
         }
 
         entry

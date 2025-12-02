@@ -149,6 +149,7 @@ impl BibValidator {
     /// Validate a single entry against all configured APIs
     async fn validate_entry(&self, entry: &Entry) -> EntryReport {
         let mut validation_results = Vec::new();
+        let mut api_errors = Vec::new();
 
         // Try DOI-based lookup first (most reliable)
         if let Some(doi) = &entry.doi {
@@ -169,7 +170,7 @@ impl BibValidator {
                         // If invalid match, silently skip - DOI might be wrong
                     }
                     Ok(None) => {}
-                    Err(_) => {}
+                    Err(e) => api_errors.push(format!("CrossRef DOI lookup failed: {}", e)),
                 }
             }
         }
@@ -190,7 +191,7 @@ impl BibValidator {
                         }
                     }
                     Ok(None) => {}
-                    Err(_) => {}
+                    Err(e) => api_errors.push(format!("ArXiv lookup failed: {}", e)),
                 }
             }
 
@@ -209,7 +210,7 @@ impl BibValidator {
                         }
                     }
                     Ok(None) => {}
-                    Err(_) => {}
+                    Err(e) => api_errors.push(format!("Semantic Scholar arXiv lookup failed: {}", e)),
                 }
             }
         }
@@ -219,76 +220,91 @@ impl BibValidator {
             if let Some(title) = &entry.title {
                 // Try DBLP
                 if let Some(ref client) = self.dblp {
-                    if let Ok(results) = client.search_by_title(title).await {
-                        if let Some((matched, confidence)) = find_best_match(entry, &results) {
-                            let discrepancies = compare_entries(entry, matched);
-                            validation_results.push(ValidationResult {
-                                source: ApiSource::Dblp,
-                                matched_entry: Some(matched.clone()),
-                                confidence,
-                                discrepancies,
-                            });
+                    match client.search_by_title(title).await {
+                        Ok(results) => {
+                            if let Some((matched, confidence)) = find_best_match(entry, &results) {
+                                let discrepancies = compare_entries(entry, matched);
+                                validation_results.push(ValidationResult {
+                                    source: ApiSource::Dblp,
+                                    matched_entry: Some(matched.clone()),
+                                    confidence,
+                                    discrepancies,
+                                });
+                            }
                         }
+                        Err(e) => api_errors.push(format!("DBLP lookup failed: {}", e)),
                     }
                 }
 
                 // Try Semantic Scholar
                 if let Some(ref client) = self.semantic {
-                    if let Ok(results) = client.search_by_title(title).await {
-                        if let Some((matched, confidence)) = find_best_match(entry, &results) {
-                            let discrepancies = compare_entries(entry, matched);
-                            validation_results.push(ValidationResult {
-                                source: ApiSource::SemanticScholar,
-                                matched_entry: Some(matched.clone()),
-                                confidence,
-                                discrepancies,
-                            });
+                    match client.search_by_title(title).await {
+                        Ok(results) => {
+                            if let Some((matched, confidence)) = find_best_match(entry, &results) {
+                                let discrepancies = compare_entries(entry, matched);
+                                validation_results.push(ValidationResult {
+                                    source: ApiSource::SemanticScholar,
+                                    matched_entry: Some(matched.clone()),
+                                    confidence,
+                                    discrepancies,
+                                });
+                            }
                         }
+                        Err(e) => api_errors.push(format!("Semantic Scholar lookup failed: {}", e)),
                     }
                 }
 
                 // Try OpenAlex
                 if let Some(ref client) = self.openalex {
-                    if let Ok(results) = client.search_by_title(title).await {
-                        if let Some((matched, confidence)) = find_best_match(entry, &results) {
-                            let discrepancies = compare_entries(entry, matched);
-                            validation_results.push(ValidationResult {
-                                source: ApiSource::OpenAlex,
-                                matched_entry: Some(matched.clone()),
-                                confidence,
-                                discrepancies,
-                            });
+                    match client.search_by_title(title).await {
+                        Ok(results) => {
+                            if let Some((matched, confidence)) = find_best_match(entry, &results) {
+                                let discrepancies = compare_entries(entry, matched);
+                                validation_results.push(ValidationResult {
+                                    source: ApiSource::OpenAlex,
+                                    matched_entry: Some(matched.clone()),
+                                    confidence,
+                                    discrepancies,
+                                });
+                            }
                         }
+                        Err(e) => api_errors.push(format!("OpenAlex lookup failed: {}", e)),
                     }
                 }
 
                 // Try Open Library (good for older books)
                 if let Some(ref client) = self.openlibrary {
-                    if let Ok(results) = client.search_by_title(title).await {
-                        if let Some((matched, confidence)) = find_best_match(entry, &results) {
-                            let discrepancies = compare_entries(entry, matched);
-                            validation_results.push(ValidationResult {
-                                source: ApiSource::OpenLibrary,
-                                matched_entry: Some(matched.clone()),
-                                confidence,
-                                discrepancies,
-                            });
+                    match client.search_by_title(title).await {
+                        Ok(results) => {
+                            if let Some((matched, confidence)) = find_best_match(entry, &results) {
+                                let discrepancies = compare_entries(entry, matched);
+                                validation_results.push(ValidationResult {
+                                    source: ApiSource::OpenLibrary,
+                                    matched_entry: Some(matched.clone()),
+                                    confidence,
+                                    discrepancies,
+                                });
+                            }
                         }
+                        Err(e) => api_errors.push(format!("Open Library lookup failed: {}", e)),
                     }
                 }
 
                 // Try OpenReview (good for ML conference papers)
                 if let Some(ref client) = self.openreview {
-                    if let Ok(results) = client.search_by_title(title).await {
-                        if let Some((matched, confidence)) = find_best_match(entry, &results) {
-                            let discrepancies = compare_entries(entry, matched);
-                            validation_results.push(ValidationResult {
-                                source: ApiSource::OpenReview,
-                                matched_entry: Some(matched.clone()),
-                                confidence,
-                                discrepancies,
-                            });
+                    match client.search_by_title(title).await {
+                        Ok(results) => {
+                            if let Some((matched, confidence)) = find_best_match(entry, &results) {
+                                let discrepancies = compare_entries(entry, matched);
+                                validation_results.push(ValidationResult {
+                                    source: ApiSource::OpenReview,
+                                    matched_entry: Some(matched.clone()),
+                                    confidence,
+                                    discrepancies,
+                                });
+                            }
                         }
+                        Err(e) => api_errors.push(format!("OpenReview lookup failed: {}", e)),
                     }
                 }
             }
@@ -296,26 +312,24 @@ impl BibValidator {
 
         // Fuse results from all validators to find consensus
         let fused = fuse_results(entry, &validation_results);
+        let mut report_results = validation_results.clone();
 
-        // Determine overall status based on fused results
-        let status = determine_status(&fused);
-
-        // Create a synthetic validation result with fused discrepancies for reporting
-        let fused_result = if fused.has_matches {
-            vec![ValidationResult {
+        if fused.has_matches {
+            report_results.push(ValidationResult {
                 source: *fused.sources.first().unwrap_or(&ApiSource::CrossRef),
                 matched_entry: None,
                 confidence: 1.0,
-                discrepancies: fused.discrepancies,
-            }]
-        } else {
-            validation_results
-        };
+                discrepancies: fused.discrepancies.clone(),
+            });
+        }
+
+        // Determine overall status based on fused results and individual validator findings
+        let status = compute_status(&fused, &validation_results, &api_errors);
 
         EntryReport {
             entry: entry.clone(),
             status,
-            validation_results: fused_result,
+            validation_results: report_results,
         }
     }
 
@@ -372,5 +386,82 @@ fn determine_status(fused: &fusion::FusedResult) -> EntryStatus {
         // Report which sources validated this entry
         let source = fused.sources.first().copied().unwrap_or(ApiSource::CrossRef);
         EntryStatus::Ok(source)
+    }
+}
+
+fn compute_status(
+    fused: &fusion::FusedResult,
+    validation_results: &[ValidationResult],
+    api_errors: &[String],
+) -> EntryStatus {
+    let mut status = determine_status(fused);
+
+    // If consensus says OK but any validator raised issues, downgrade to reflect them
+    if matches!(status, EntryStatus::Ok(_)) {
+        let has_errors = validation_results
+            .iter()
+            .any(|r| r.discrepancies.iter().any(|d| d.severity == Severity::Error));
+        let has_warnings = validation_results
+            .iter()
+            .any(|r| r.discrepancies.iter().any(|d| d.severity == Severity::Warning));
+
+        if has_errors {
+            status = EntryStatus::Error;
+        } else if has_warnings {
+            status = EntryStatus::Warning;
+        }
+    }
+
+    if matches!(status, EntryStatus::NotFound) && !api_errors.is_empty() {
+        return EntryStatus::Failed(api_errors.join("; "));
+    }
+
+    status
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entry::{Discrepancy, DiscrepancyField};
+
+    fn make_validation_result(severity: Severity) -> ValidationResult {
+        ValidationResult {
+            source: ApiSource::CrossRef,
+            matched_entry: None,
+            confidence: 1.0,
+            discrepancies: vec![Discrepancy {
+                field: DiscrepancyField::Title,
+                severity,
+                local_value: "local".to_string(),
+                remote_value: "remote".to_string(),
+                message: "difference".to_string(),
+            }],
+        }
+    }
+
+    #[test]
+    fn status_drops_to_warning_when_validator_reports_warning() {
+        let fused = fusion::FusedResult {
+            sources: vec![ApiSource::CrossRef],
+            discrepancies: vec![],
+            has_matches: true,
+        };
+
+        let validation_results = vec![make_validation_result(Severity::Warning)];
+        let status = compute_status(&fused, &validation_results, &[]);
+
+        assert!(matches!(status, EntryStatus::Warning));
+    }
+
+    #[test]
+    fn api_errors_turn_not_found_into_failed() {
+        let fused = fusion::FusedResult {
+            sources: vec![],
+            discrepancies: vec![],
+            has_matches: false,
+        };
+
+        let status = compute_status(&fused, &[], &[String::from("CrossRef rate limited")]);
+        assert!(matches!(status, EntryStatus::Failed(_)));
     }
 }

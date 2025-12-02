@@ -67,6 +67,13 @@ impl Report {
             .count()
     }
 
+    pub fn count_failed(&self) -> usize {
+        self.entries
+            .iter()
+            .filter(|e| matches!(e.status, EntryStatus::Failed(_)))
+            .count()
+    }
+
     /// Print the report to stdout with colors
     pub fn print(&self) {
         println!();
@@ -79,13 +86,15 @@ impl Report {
         let warnings = self.count_warnings();
         let errors = self.count_errors();
         let not_found = self.count_not_found();
+        let failed = self.count_failed();
 
         println!("Processed: {} entries", total);
         println!(
-            "  {} validated, {} warnings, {} errors, {} not found",
+            "  {} validated, {} warnings, {} errors, {} failed, {} not found",
             ok.to_string().green(),
             warnings.to_string().yellow(),
             errors.to_string().red(),
+            failed.to_string().red().bold(),
             not_found.to_string().dimmed()
         );
         println!();
@@ -101,6 +110,27 @@ impl Report {
             println!("{}", format!("ERRORS ({})", error_entries.len()).red().bold());
             for entry_report in error_entries {
                 print_entry_report(entry_report);
+            }
+            println!();
+        }
+
+        // Print failures (API issues)
+        let failed_entries: Vec<_> = self
+            .entries
+            .iter()
+            .filter(|e| matches!(e.status, EntryStatus::Failed(_)))
+            .collect();
+
+        if !failed_entries.is_empty() {
+            println!("{}", format!("FAILED ({})", failed_entries.len()).red().bold());
+            for entry_report in failed_entries {
+                if let EntryStatus::Failed(reason) = &entry_report.status {
+                    println!(
+                        "  {} {}",
+                        format!("[{}]", entry_report.entry.key).dimmed(),
+                        reason
+                    );
+                }
             }
             println!();
         }

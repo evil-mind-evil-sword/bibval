@@ -96,22 +96,15 @@ struct SearchDoc {
     title: Option<String>,
     author_name: Option<Vec<String>>,
     first_publish_year: Option<i32>,
-    isbn: Option<Vec<String>>,
     publisher: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct BookEdition {
     title: Option<String>,
-    authors: Option<Vec<AuthorRef>>,
     publish_date: Option<String>,
     publishers: Option<Vec<String>>,
     works: Option<Vec<WorkRef>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AuthorRef {
-    key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,7 +115,6 @@ struct WorkRef {
 #[derive(Debug, Deserialize)]
 struct Work {
     title: Option<String>,
-    authors: Option<Vec<AuthorRef>>,
 }
 
 impl SearchDoc {
