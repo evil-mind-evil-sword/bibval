@@ -4,7 +4,7 @@ use reqwest::Client;
 use serde::Deserialize;
 
 const CROSSREF_API_BASE: &str = "https://api.crossref.org/works";
-const USER_AGENT: &str = "biblatex-validator/0.1.0 (https://github.com/user/biblatex-validator; mailto:user@example.com)";
+const USER_AGENT: &str = "bibval/0.1.0 (https://github.com/femtomc/bibval; mailto:user@example.com)";
 
 pub struct CrossRefClient {
     client: Client,

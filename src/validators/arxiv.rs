@@ -13,7 +13,7 @@ pub struct ArxivClient {
 impl ArxivClient {
     pub fn new() -> Self {
         let client = Client::builder()
-            .user_agent("biblatex-validator/0.1.0")
+            .user_agent("bibval/0.1.0 (https://github.com/femtomc/bibval)")
             .build()
             .expect("Failed to create HTTP client");
         Self { client }

@@ -24,15 +24,7 @@ pub struct Cache {
 impl Cache {
     pub fn new(enabled: bool) -> Result<Self, CacheError> {
         let base_dir = dirs::cache_dir().unwrap_or_else(|| PathBuf::from(".cache"));
-        let preferred = base_dir.join("bibval");
-        let legacy = base_dir.join("biblatex-validator");
-
-        // Prefer the new path, but continue to use legacy if it already exists
-        let cache_dir = if legacy.exists() && !preferred.exists() {
-            legacy
-        } else {
-            preferred
-        };
+        let cache_dir = base_dir.join("bibval");
 
         if enabled {
             fs::create_dir_all(&cache_dir).map_err(CacheError::CreateDir)?;

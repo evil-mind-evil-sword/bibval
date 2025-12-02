@@ -77,7 +77,7 @@ impl Report {
     /// Print the report to stdout with colors
     pub fn print(&self) {
         println!();
-        println!("{}", "biblatex-validator Report".bold());
+        println!("{}", "bibval Report".bold());
         println!("{}", "=".repeat(50));
         println!();
 

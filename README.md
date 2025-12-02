@@ -46,7 +46,7 @@ bibval paper.bib thesis.bib
 ### Example Output
 
 ```
-biblatex-validator Report
+bibval Report
 ==================================================
 
 Processed: 84 entries
