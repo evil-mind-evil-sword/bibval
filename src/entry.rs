@@ -81,6 +81,7 @@ pub enum ApiSource {
     SemanticScholar,
     OpenAlex,
     OpenLibrary,
+    OpenReview,
 }
 
 impl std::fmt::Display for ApiSource {
@@ -92,6 +93,7 @@ impl std::fmt::Display for ApiSource {
             ApiSource::SemanticScholar => write!(f, "Semantic Scholar"),
             ApiSource::OpenAlex => write!(f, "OpenAlex"),
             ApiSource::OpenLibrary => write!(f, "Open Library"),
+            ApiSource::OpenReview => write!(f, "OpenReview"),
         }
     }
 }

@@ -16,7 +16,8 @@ use report::{EntryReport, EntryStatus, Report};
 const MIN_TITLE_SIMILARITY_FOR_ID_LOOKUP: f64 = 0.75;
 use validators::{
     arxiv::ArxivClient, crossref::CrossRefClient, dblp::DblpClient, openalex::OpenAlexClient,
-    openlibrary::OpenLibraryClient, semantic::SemanticScholarClient, Validator, ValidatorError,
+    openlibrary::OpenLibraryClient, openreview::OpenReviewClient, semantic::SemanticScholarClient,
+    Validator, ValidatorError,
 };
 
 use futures::{stream, StreamExt};
@@ -32,6 +33,7 @@ pub struct ValidatorConfig {
     pub use_semantic: bool,
     pub use_openalex: bool,
     pub use_openlibrary: bool,
+    pub use_openreview: bool,
     pub cache_enabled: bool,
 }
 
@@ -44,6 +46,7 @@ impl Default for ValidatorConfig {
             use_semantic: true,
             use_openalex: true,
             use_openlibrary: true,
+            use_openreview: true,
             cache_enabled: true,
         }
     }
@@ -57,6 +60,7 @@ pub struct BibValidator {
     semantic: Option<SemanticScholarClient>,
     openalex: Option<OpenAlexClient>,
     openlibrary: Option<OpenLibraryClient>,
+    openreview: Option<OpenReviewClient>,
     cache: Cache,
 }
 
@@ -92,6 +96,11 @@ impl BibValidator {
             },
             openlibrary: if config.use_openlibrary {
                 Some(OpenLibraryClient::new())
+            } else {
+                None
+            },
+            openreview: if config.use_openreview {
+                Some(OpenReviewClient::new())
             } else {
                 None
             },
@@ -260,6 +269,21 @@ impl BibValidator {
                             let discrepancies = compare_entries(entry, matched);
                             validation_results.push(ValidationResult {
                                 source: ApiSource::OpenLibrary,
+                                matched_entry: Some(matched.clone()),
+                                confidence,
+                                discrepancies,
+                            });
+                        }
+                    }
+                }
+
+                // Try OpenReview (good for ML conference papers)
+                if let Some(ref client) = self.openreview {
+                    if let Ok(results) = client.search_by_title(title).await {
+                        if let Some((matched, confidence)) = find_best_match(entry, &results) {
+                            let discrepancies = compare_entries(entry, matched);
+                            validation_results.push(ValidationResult {
+                                source: ApiSource::OpenReview,
                                 matched_entry: Some(matched.clone()),
                                 confidence,
                                 discrepancies,

@@ -37,6 +37,10 @@ struct Args {
     #[arg(long)]
     no_openlibrary: bool,
 
+    /// Disable OpenReview API
+    #[arg(long)]
+    no_openreview: bool,
+
     /// Disable caching of API responses
     #[arg(long)]
     no_cache: bool,
@@ -106,6 +110,7 @@ async fn main() -> ExitCode {
         use_semantic: !args.no_semantic,
         use_openalex: !args.no_openalex,
         use_openlibrary: !args.no_openlibrary,
+        use_openreview: !args.no_openreview,
         cache_enabled: !args.no_cache,
     };
 

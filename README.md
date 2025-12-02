@@ -36,6 +36,7 @@ bibval paper.bib thesis.bib
 | `--no-semantic` | Disable Semantic Scholar API |
 | `--no-openalex` | Disable OpenAlex API |
 | `--no-openlibrary` | Disable Open Library API |
+| `--no-openreview` | Disable OpenReview API |
 | `--no-cache` | Disable caching of API responses |
 | `-s, --strict` | Exit with error if any issues found |
 | `-v, --verbose` | Verbose output |
@@ -74,6 +75,7 @@ bibval queries multiple academic databases in parallel:
 - **Semantic Scholar** - AI-powered academic search
 - **OpenAlex** - Open catalog of 250M+ scholarly works
 - **Open Library** - Books and older publications
+- **OpenReview** - ML conference papers (ICLR, NeurIPS, etc.)
 
 ## What It Checks
 
