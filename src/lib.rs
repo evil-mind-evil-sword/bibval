@@ -1,14 +1,19 @@
 pub mod cache;
 pub mod entry;
+pub mod fusion;
 pub mod matcher;
 pub mod parser;
 pub mod report;
 pub mod validators;
 
 use cache::Cache;
-use entry::{ApiSource, Entry, ValidationResult};
-use matcher::{compare_entries, find_best_match};
+use entry::{ApiSource, Entry, Severity, ValidationResult};
+use fusion::fuse_results;
+use matcher::{compare_entries, find_best_match, title_similarity, years_compatible};
 use report::{EntryReport, EntryStatus, Report};
+
+/// Minimum title similarity to trust a DOI/arXiv ID lookup result
+const MIN_TITLE_SIMILARITY_FOR_ID_LOOKUP: f64 = 0.75;
 use validators::{
     arxiv::ArxivClient, crossref::CrossRefClient, dblp::DblpClient,
     openalex::OpenAlexClient, semantic::SemanticScholarClient, Validator, ValidatorError,
@@ -133,14 +138,18 @@ impl BibValidator {
             if let Some(ref client) = self.crossref {
                 match self.try_doi_lookup(client, doi).await {
                     Ok(Some(result)) => {
-                        let discrepancies = compare_entries(entry, &result);
-                        let confidence = if discrepancies.is_empty() { 1.0 } else { 0.8 };
-                        validation_results.push(ValidationResult {
-                            source: ApiSource::CrossRef,
-                            matched_entry: Some(result),
-                            confidence,
-                            discrepancies,
-                        });
+                        // Validate that the returned paper actually matches
+                        if is_valid_id_match(entry, &result) {
+                            let discrepancies = compare_entries(entry, &result);
+                            let confidence = if discrepancies.is_empty() { 1.0 } else { 0.8 };
+                            validation_results.push(ValidationResult {
+                                source: ApiSource::CrossRef,
+                                matched_entry: Some(result),
+                                confidence,
+                                discrepancies,
+                            });
+                        }
+                        // If invalid match, silently skip - DOI might be wrong
                     }
                     Ok(None) => {}
                     Err(_) => {}
@@ -153,13 +162,15 @@ impl BibValidator {
             if let Some(ref client) = self.arxiv {
                 match client.search_by_arxiv_id(arxiv_id).await {
                     Ok(Some(result)) => {
-                        let discrepancies = compare_entries(entry, &result);
-                        validation_results.push(ValidationResult {
-                            source: ApiSource::ArXiv,
-                            matched_entry: Some(result),
-                            confidence: 0.95,
-                            discrepancies,
-                        });
+                        if is_valid_id_match(entry, &result) {
+                            let discrepancies = compare_entries(entry, &result);
+                            validation_results.push(ValidationResult {
+                                source: ApiSource::ArXiv,
+                                matched_entry: Some(result),
+                                confidence: 0.95,
+                                discrepancies,
+                            });
+                        }
                     }
                     Ok(None) => {}
                     Err(_) => {}
@@ -170,13 +181,15 @@ impl BibValidator {
             if let Some(ref client) = self.semantic {
                 match client.search_by_arxiv_id(arxiv_id).await {
                     Ok(Some(result)) => {
-                        let discrepancies = compare_entries(entry, &result);
-                        validation_results.push(ValidationResult {
-                            source: ApiSource::SemanticScholar,
-                            matched_entry: Some(result),
-                            confidence: 0.9,
-                            discrepancies,
-                        });
+                        if is_valid_id_match(entry, &result) {
+                            let discrepancies = compare_entries(entry, &result);
+                            validation_results.push(ValidationResult {
+                                source: ApiSource::SemanticScholar,
+                                matched_entry: Some(result),
+                                confidence: 0.9,
+                                discrepancies,
+                            });
+                        }
                     }
                     Ok(None) => {}
                     Err(_) => {}
@@ -234,13 +247,28 @@ impl BibValidator {
             }
         }
 
-        // Determine overall status
-        let status = determine_status(&validation_results);
+        // Fuse results from all validators to find consensus
+        let fused = fuse_results(entry, &validation_results);
+
+        // Determine overall status based on fused results
+        let status = determine_status(&fused);
+
+        // Create a synthetic validation result with fused discrepancies for reporting
+        let fused_result = if fused.has_matches {
+            vec![ValidationResult {
+                source: *fused.sources.first().unwrap_or(&ApiSource::CrossRef),
+                matched_entry: None,
+                confidence: 1.0,
+                discrepancies: fused.discrepancies,
+            }]
+        } else {
+            validation_results
+        };
 
         EntryReport {
             entry: entry.clone(),
             status,
-            validation_results,
+            validation_results: fused_result,
         }
     }
 
@@ -265,34 +293,37 @@ impl BibValidator {
     }
 }
 
-fn determine_status(results: &[ValidationResult]) -> EntryStatus {
-    if results.is_empty() {
+/// Check if a matched entry from ID lookup is valid (title similar enough, year compatible)
+fn is_valid_id_match(local: &Entry, remote: &Entry) -> bool {
+    let title_sim = title_similarity(local, remote);
+    let years_ok = years_compatible(local, remote);
+
+    // For ID-based lookups (DOI, arXiv), we're more lenient on title
+    // but still require some similarity and year compatibility
+    title_sim >= MIN_TITLE_SIMILARITY_FOR_ID_LOOKUP && years_ok
+}
+
+fn determine_status(fused: &fusion::FusedResult) -> EntryStatus {
+    if !fused.has_matches {
         return EntryStatus::NotFound;
     }
 
-    // Find the result with highest confidence
-    let best = results
+    let has_errors = fused
+        .discrepancies
         .iter()
-        .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap());
+        .any(|d| d.severity == Severity::Error);
+    let has_warnings = fused
+        .discrepancies
+        .iter()
+        .any(|d| d.severity == Severity::Warning);
 
-    if let Some(result) = best {
-        let has_errors = result
-            .discrepancies
-            .iter()
-            .any(|d| d.severity == entry::Severity::Error);
-        let has_warnings = result
-            .discrepancies
-            .iter()
-            .any(|d| d.severity == entry::Severity::Warning);
-
-        if has_errors {
-            EntryStatus::Error
-        } else if has_warnings {
-            EntryStatus::Warning
-        } else {
-            EntryStatus::Ok(result.source)
-        }
+    if has_errors {
+        EntryStatus::Error
+    } else if has_warnings {
+        EntryStatus::Warning
     } else {
-        EntryStatus::NotFound
+        // Report which sources validated this entry
+        let source = fused.sources.first().copied().unwrap_or(ApiSource::CrossRef);
+        EntryStatus::Ok(source)
     }
 }

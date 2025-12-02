@@ -8,6 +8,12 @@ const TITLE_WARNING_THRESHOLD: f64 = 0.90;
 /// Threshold for author name similarity
 const AUTHOR_MATCH_THRESHOLD: f64 = 0.80;
 
+/// Maximum year difference for a valid match
+const MAX_YEAR_DIFFERENCE: i32 = 2;
+
+/// Minimum author overlap ratio for a valid match
+const MIN_AUTHOR_OVERLAP: f64 = 0.3;
+
 /// Compare two entries and return a list of discrepancies
 pub fn compare_entries(local: &Entry, remote: &Entry) -> Vec<Discrepancy> {
     let mut discrepancies = Vec::new();
@@ -158,12 +164,88 @@ pub fn title_similarity(a: &Entry, b: &Entry) -> f64 {
     }
 }
 
+/// Check if years are within acceptable range
+pub fn years_compatible(a: &Entry, b: &Entry) -> bool {
+    match (a.year, b.year) {
+        (Some(year_a), Some(year_b)) => (year_a - year_b).abs() <= MAX_YEAR_DIFFERENCE,
+        // If either year is missing, don't filter on year
+        _ => true,
+    }
+}
+
+/// Calculate author overlap ratio (0.0 to 1.0)
+/// Returns the fraction of local authors that have a fuzzy match in remote authors
+pub fn author_overlap(local: &Entry, remote: &Entry) -> f64 {
+    if local.authors.is_empty() || remote.authors.is_empty() {
+        // Can't compute overlap, assume it's okay
+        return 1.0;
+    }
+
+    let mut matches = 0;
+    for local_author in &local.authors {
+        let local_norm = normalize_string(local_author);
+        // Check if any remote author matches this local author
+        let has_match = remote.authors.iter().any(|remote_author| {
+            let remote_norm = normalize_string(remote_author);
+            // Check full name similarity
+            let full_sim = jaro_winkler(&local_norm, &remote_norm);
+            // Also check if last names match (common case: "John Smith" vs "J. Smith")
+            let local_last = local_norm.split_whitespace().last().unwrap_or("");
+            let remote_last = remote_norm.split_whitespace().last().unwrap_or("");
+            let last_name_sim = jaro_winkler(local_last, remote_last);
+
+            full_sim >= AUTHOR_MATCH_THRESHOLD || last_name_sim >= 0.9
+        });
+        if has_match {
+            matches += 1;
+        }
+    }
+
+    matches as f64 / local.authors.len() as f64
+}
+
+/// Calculate a combined match score considering title, year, and authors
+pub fn match_score(target: &Entry, candidate: &Entry) -> f64 {
+    let title_sim = title_similarity(target, candidate);
+
+    // Hard filter: title must be reasonably similar
+    if title_sim < TITLE_MATCH_THRESHOLD {
+        return 0.0;
+    }
+
+    // Hard filter: years must be compatible
+    if !years_compatible(target, candidate) {
+        return 0.0;
+    }
+
+    // Compute author overlap
+    let author_sim = author_overlap(target, candidate);
+
+    // If we have author info and overlap is too low, reject
+    if !target.authors.is_empty() && !candidate.authors.is_empty() && author_sim < MIN_AUTHOR_OVERLAP {
+        return 0.0;
+    }
+
+    // Combined score: weight title heavily, but boost with author match
+    // Title: 70%, Authors: 30%
+    let base_score = title_sim * 0.7 + author_sim * 0.3;
+
+    // Boost if DOIs match exactly
+    if let (Some(doi_a), Some(doi_b)) = (&target.doi, &candidate.doi) {
+        if doi_a.to_lowercase() == doi_b.to_lowercase() {
+            return 1.0; // Perfect match
+        }
+    }
+
+    base_score
+}
+
 /// Find the best matching entry from a list of candidates
 pub fn find_best_match<'a>(target: &Entry, candidates: &'a [Entry]) -> Option<(&'a Entry, f64)> {
     candidates
         .iter()
-        .map(|c| (c, title_similarity(target, c)))
-        .filter(|(_, sim)| *sim >= TITLE_MATCH_THRESHOLD)
+        .map(|c| (c, match_score(target, c)))
+        .filter(|(_, score)| *score > 0.0)
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
 }
 
