@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Validate BibTeX/BibLaTeX references against academic databases"
 license = "MIT"
-repository = "https://github.com/femtomc/bibval"
+repository = "https://github.com/evil-mind-evil-sword/bibval"
 
 [dependencies]
 biblatex = "0.10"
