@@ -98,7 +98,7 @@ jobs:
           # Usage: curl -fsSL https://github.com/evil-mind-evil-sword/bibval/releases/latest/download/install.sh | sh
 
           REPO="evil-mind-evil-sword/bibval"
-          INSTALL_DIR="${BIBVAL_INSTALL_DIR:-/usr/local/bin}"
+          INSTALL_DIR="${BIBVAL_INSTALL_DIR:-$HOME/.local/bin}"
 
           # Detect OS and architecture
           OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -135,15 +135,19 @@ jobs:
           tar -xzf "$TMPDIR/$ASSET" -C "$TMPDIR"
 
           # Install
-          if [ -w "$INSTALL_DIR" ]; then
-            mv "$TMPDIR/bibval-${ARCH}-${OS}" "$INSTALL_DIR/bibval"
-          else
-            echo "Installing to $INSTALL_DIR (requires sudo)..."
-            sudo mv "$TMPDIR/bibval-${ARCH}-${OS}" "$INSTALL_DIR/bibval"
+          mkdir -p "$INSTALL_DIR"
+          mv "$TMPDIR/bibval-${ARCH}-${OS}" "$INSTALL_DIR/bibval"
+          chmod +x "$INSTALL_DIR/bibval"
+
+          echo "bibval installed to $INSTALL_DIR/bibval"
+
+          if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
+            echo ""
+            echo "Add to your PATH:"
+            echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
           fi
 
-          chmod +x "$INSTALL_DIR/bibval"
-          echo "bibval installed to $INSTALL_DIR/bibval"
+          echo ""
           echo "Run 'bibval --help' to get started"
           INSTALL_SCRIPT
           chmod +x release/install.sh
