@@ -1,0 +1,158 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: bibval-x86_64-linux
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: bibval-aarch64-linux
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: bibval-x86_64-macos
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact: bibval-aarch64-macos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools (Linux)
+        if: contains(matrix.target, 'linux')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Install cross (for cross-compilation)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build (native)
+        if: "!matrix.cross"
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+          mv target/${{ matrix.target }}/release/bibval ${{ matrix.artifact }}
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: |
+          cross build --release --target ${{ matrix.target }}
+          mv target/${{ matrix.target }}/release/bibval ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          for dir in artifacts/*/; do
+            name=$(basename "$dir")
+            cp "$dir/$name" "release/$name"
+            chmod +x "release/$name"
+            # Create tarball
+            tar -czvf "release/${name}.tar.gz" -C release "$name"
+            # Create sha256sum
+            (cd release && sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256")
+          done
+
+      - name: Create install script
+        run: |
+          cat > release/install.sh << 'INSTALL_SCRIPT'
+          #!/bin/sh
+          set -e
+
+          # bibval installer
+          # Usage: curl -fsSL https://github.com/evil-mind-evil-sword/bibval/releases/latest/download/install.sh | sh
+
+          REPO="evil-mind-evil-sword/bibval"
+          INSTALL_DIR="${BIBVAL_INSTALL_DIR:-/usr/local/bin}"
+
+          # Detect OS and architecture
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ARCH=$(uname -m)
+
+          case "$OS" in
+            linux) OS="linux" ;;
+            darwin) OS="macos" ;;
+            *) echo "Unsupported OS: $OS"; exit 1 ;;
+          esac
+
+          case "$ARCH" in
+            x86_64|amd64) ARCH="x86_64" ;;
+            aarch64|arm64) ARCH="aarch64" ;;
+            *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+          esac
+
+          ASSET="bibval-${ARCH}-${OS}.tar.gz"
+
+          # Get latest release URL
+          if [ -n "$BIBVAL_VERSION" ]; then
+            VERSION="$BIBVAL_VERSION"
+          else
+            VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+          fi
+
+          URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
+
+          echo "Downloading bibval ${VERSION} for ${OS}/${ARCH}..."
+          TMPDIR=$(mktemp -d)
+          trap "rm -rf $TMPDIR" EXIT
+
+          curl -fsSL "$URL" -o "$TMPDIR/$ASSET"
+          tar -xzf "$TMPDIR/$ASSET" -C "$TMPDIR"
+
+          # Install
+          if [ -w "$INSTALL_DIR" ]; then
+            mv "$TMPDIR/bibval-${ARCH}-${OS}" "$INSTALL_DIR/bibval"
+          else
+            echo "Installing to $INSTALL_DIR (requires sudo)..."
+            sudo mv "$TMPDIR/bibval-${ARCH}-${OS}" "$INSTALL_DIR/bibval"
+          fi
+
+          chmod +x "$INSTALL_DIR/bibval"
+          echo "bibval installed to $INSTALL_DIR/bibval"
+          echo "Run 'bibval --help' to get started"
+          INSTALL_SCRIPT
+          chmod +x release/install.sh
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release/*.tar.gz
+            release/*.sha256
+            release/install.sh
