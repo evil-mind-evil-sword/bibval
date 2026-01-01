@@ -111,6 +111,16 @@ Disable with `--no-cache`.
 
 Use `--strict` to treat warnings as errors.
 
+## Related
+
+bibval builds on the APIs of several academic databases:
+
+**Primary Sources.** [CrossRef](https://www.crossref.org/) is the canonical source for DOI metadata—bibval checks here first for published articles. [DBLP](https://dblp.org/) has been the computer science community's bibliography since 1993, maintained by Schloss Dagstuhl and released as open data. [Semantic Scholar](https://www.semanticscholar.org/) adds AI-powered features like paper embeddings and citation context.
+
+**Other Databases.** [arXiv](https://arxiv.org/) covers preprints. [OpenAlex](https://openalex.org/) is an open catalog of 250M+ scholarly works that replaced Microsoft Academic. [OpenReview](https://openreview.net/) hosts ML conference papers with public reviews.
+
+**Reference Managers.** For managing bibliographies rather than validating them, [Zotero](https://www.zotero.org/) is open-source with good browser integration. [JabRef](https://www.jabref.org/) is BibTeX-native. Both can export entries that bibval can then validate.
+
 ## License
 
 MIT
