@@ -18,10 +18,9 @@ cargo install bibval
 
 ## Why?
 
-- **Catch Errors** — Detect year mismatches, title differences, missing DOIs before publication
-- **Multiple Sources** — Query 8 academic databases in parallel for comprehensive validation
-- **Fast** — Local caching speeds up repeated validations
-- **Scriptable** — Exit codes and JSON output for CI integration
+BibTeX files accumulate errors over time. You copy a citation from Google Scholar, but the year is wrong. You import from Zotero, but the title has curly quotes that break compilation. You cite a preprint that's since been published, but now your bibliography points to the wrong venue.
+
+bibval catches these by checking your entries against the source of truth: CrossRef for DOIs, DBLP for CS publications, arXiv for preprints, and five other academic databases. It queries them in parallel and caches responses locally, so repeated runs are fast. When it finds a mismatch—wrong year, different title, missing DOI—it tells you exactly what's wrong and where the correct data came from.
 
 ## Usage
 
