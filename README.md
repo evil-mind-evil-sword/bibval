@@ -4,13 +4,6 @@
 
 Validates bibliographic references by querying CrossRef, DBLP, arXiv, Semantic Scholar, and other sources.
 
-## Why?
-
-- **Catch Errors** — Detect year mismatches, title differences, missing DOIs before publication
-- **Multiple Sources** — Query 8 academic databases in parallel for comprehensive validation
-- **Fast** — Local caching speeds up repeated validations
-- **Scriptable** — Exit codes and JSON output for CI integration
-
 ## Installation
 
 ```bash
@@ -22,6 +15,13 @@ Or from crates.io (once published):
 ```bash
 cargo install bibval
 ```
+
+## Why?
+
+- **Catch Errors** — Detect year mismatches, title differences, missing DOIs before publication
+- **Multiple Sources** — Query 8 academic databases in parallel for comprehensive validation
+- **Fast** — Local caching speeds up repeated validations
+- **Scriptable** — Exit codes and JSON output for CI integration
 
 ## Usage
 
