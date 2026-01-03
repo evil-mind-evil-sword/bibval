@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+env:
+  SITE_REPO: "evil-mind-evil-sword/evil-mind-evil-sword.github.io"
+  RELEASES_BASE: "https://evil-mind-evil-sword.github.io/releases"
+
 jobs:
   build:
     name: Build ${{ matrix.target }}
@@ -75,6 +79,10 @@ jobs:
         with:
           path: artifacts
 
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
       - name: Prepare release assets
         run: |
           mkdir -p release
@@ -82,11 +90,9 @@ jobs:
             name=$(basename "$dir")
             cp "$dir/$name" "release/$name"
             chmod +x "release/$name"
-            # Create tarball
-            tar -czvf "release/${name}.tar.gz" -C release "$name"
-            # Create sha256sum
-            (cd release && sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256")
           done
+          cd release
+          sha256sum * > checksums.txt
 
       - name: Create install script
         run: |
@@ -95,9 +101,9 @@ jobs:
           set -e
 
           # bibval installer
-          # Usage: curl -fsSL https://github.com/evil-mind-evil-sword/bibval/releases/latest/download/install.sh | sh
+          # Usage: curl -fsSL https://evil-mind-evil-sword.github.io/releases/bibval/install.sh | sh
 
-          REPO="evil-mind-evil-sword/bibval"
+          RELEASES_BASE="https://evil-mind-evil-sword.github.io/releases"
           INSTALL_DIR="${BIBVAL_INSTALL_DIR:-$HOME/.local/bin}"
 
           # Detect OS and architecture
@@ -116,27 +122,26 @@ jobs:
             *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
           esac
 
-          ASSET="bibval-${ARCH}-${OS}.tar.gz"
+          ASSET="bibval-${ARCH}-${OS}"
 
-          # Get latest release URL
+          # Get version from manifest
           if [ -n "$BIBVAL_VERSION" ]; then
             VERSION="$BIBVAL_VERSION"
           else
-            VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+            VERSION=$(curl -fsSL "${RELEASES_BASE}/manifest.json" | grep -o '"bibval"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
           fi
 
-          URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
+          URL="${RELEASES_BASE}/bibval/${VERSION}/${ASSET}"
 
           echo "Downloading bibval ${VERSION} for ${OS}/${ARCH}..."
           TMPDIR=$(mktemp -d)
           trap "rm -rf $TMPDIR" EXIT
 
-          curl -fsSL "$URL" -o "$TMPDIR/$ASSET"
-          tar -xzf "$TMPDIR/$ASSET" -C "$TMPDIR"
+          curl -fsSL "$URL" -o "$TMPDIR/bibval"
 
           # Install
           mkdir -p "$INSTALL_DIR"
-          mv "$TMPDIR/bibval-${ARCH}-${OS}" "$INSTALL_DIR/bibval"
+          mv "$TMPDIR/bibval" "$INSTALL_DIR/bibval"
           chmod +x "$INSTALL_DIR/bibval"
 
           echo "bibval installed to $INSTALL_DIR/bibval"
@@ -152,11 +157,33 @@ jobs:
           INSTALL_SCRIPT
           chmod +x release/install.sh
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
+      - name: Checkout site repo
+        uses: actions/checkout@v4
         with:
-          generate_release_notes: true
-          files: |
-            release/*.tar.gz
-            release/*.sha256
-            release/install.sh
+          repository: ${{ env.SITE_REPO }}
+          path: site
+          token: ${{ secrets.SITE_DEPLOY_TOKEN }}
+
+      - name: Deploy to site
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p "site/releases/bibval/${VERSION}"
+          cp release/* "site/releases/bibval/${VERSION}/"
+          cp release/install.sh "site/releases/bibval/install.sh"
+
+          # Update manifest
+          cd site/releases
+          if [ -f manifest.json ]; then
+            jq --arg v "$VERSION" '.bibval = $v' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
+          else
+            echo "{\"bibval\": \"$VERSION\"}" > manifest.json
+          fi
+
+      - name: Commit and push to site
+        run: |
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Release bibval ${{ steps.version.outputs.version }}" || exit 0
+          git push
