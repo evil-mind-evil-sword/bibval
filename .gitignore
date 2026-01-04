@@ -1,8 +1,6 @@
 # Build artifacts
-/target
-
-# Cargo lock for binaries is usually committed, but uncomment if needed
-# Cargo.lock
+zig-out/
+.zig-cache/
 
 # Editor/IDE
 .idea/
@@ -14,9 +12,6 @@
 # OS files
 .DS_Store
 Thumbs.db
-
-# Debug files
-*.pdb
 
 # Cache directory (bibval specific)
 .bibval_cache/

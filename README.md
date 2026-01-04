@@ -2,25 +2,21 @@
 
 **Citation validator.** Check BibTeX entries against academic databases.
 
-Validates bibliographic references by querying CrossRef, DBLP, arXiv, Semantic Scholar, and other sources.
+Validates bibliographic references by querying CrossRef, DBLP, Semantic Scholar, and OpenAlex.
 
 ## Installation
 
 ```bash
-cargo install --path .
+zig build -Doptimize=ReleaseFast
 ```
 
-Or from crates.io (once published):
-
-```bash
-cargo install bibval
-```
+The binary is in `zig-out/bin/bibval`.
 
 ## Why?
 
 BibTeX files accumulate errors over time. You copy a citation from Google Scholar, but the year is wrong. You import from Zotero, but the title has curly quotes that break compilation. You cite a preprint that's since been published, but now your bibliography points to the wrong venue.
 
-bibval catches these by checking your entries against the source of truth: CrossRef for DOIs, DBLP for CS publications, arXiv for preprints, and five other academic databases. It queries them in parallel and caches responses locally, so repeated runs are fast. When it finds a mismatch—wrong year, different title, missing DOI—it tells you exactly what's wrong and where the correct data came from.
+bibval catches these by checking your entries against the source of truth: CrossRef for DOIs, DBLP for CS publications, Semantic Scholar for AI-powered search, and OpenAlex for broad coverage. It queries them in parallel and caches responses locally, so repeated runs are fast. When it finds a mismatch—wrong year, different title, missing DOI—it tells you exactly what's wrong and where the correct data came from.
 
 ## Usage
 
@@ -40,16 +36,13 @@ bibval paper.bib thesis.bib
 |------|-------------|
 | `--no-crossref` | Disable CrossRef API |
 | `--no-dblp` | Disable DBLP API |
-| `--no-arxiv` | Disable ArXiv API |
 | `--no-semantic` | Disable Semantic Scholar API |
 | `--no-openalex` | Disable OpenAlex API |
-| `--no-openlibrary` | Disable Open Library API |
-| `--no-openreview` | Disable OpenReview API |
-| `--no-zenodo` | Disable Zenodo API |
 | `--no-cache` | Disable caching of API responses |
 | `-s, --strict` | Exit with error if any issues found |
 | `-v, --verbose` | Verbose output |
-| `-k, --key KEY` | Only validate entries with these citation keys (comma-separated or repeatable) |
+| `-k, --key KEY` | Only validate entries with these citation keys (comma-separated) |
+| `--json` | Output JSON format |
 
 ### Example Output
 
@@ -77,16 +70,12 @@ OK (58)
 
 ## Validators
 
-bibval queries multiple academic databases in parallel:
+bibval queries multiple academic databases:
 
 - **CrossRef** - DOI resolution and metadata
 - **DBLP** - Computer science bibliography
-- **ArXiv** - Preprint repository
 - **Semantic Scholar** - AI-powered academic search
 - **OpenAlex** - Open catalog of 250M+ scholarly works
-- **Open Library** - Books and older publications
-- **OpenReview** - ML conference papers (ICLR, NeurIPS, etc.)
-- **Zenodo** - Software artifacts, datasets, and research outputs
 
 ## What It Checks
 
@@ -97,10 +86,7 @@ bibval queries multiple academic databases in parallel:
 
 ## Caching
 
-API responses are cached locally to speed up repeated validations. Cache is stored in:
-
-- Linux/macOS: `~/.cache/bibval/`
-- Windows: `%LOCALAPPDATA%\bibval\`
+API responses are cached locally to speed up repeated validations. Cache is stored in `~/.cache/bibval/`.
 
 Disable with `--no-cache`.
 
@@ -117,7 +103,7 @@ bibval builds on the APIs of several academic databases:
 
 **Primary Sources.** [CrossRef](https://www.crossref.org/) is the canonical source for DOI metadata—bibval checks here first for published articles. [DBLP](https://dblp.org/) has been the computer science community's bibliography since 1993, maintained by Schloss Dagstuhl and released as open data. [Semantic Scholar](https://www.semanticscholar.org/) adds AI-powered features like paper embeddings and citation context.
 
-**Other Databases.** [arXiv](https://arxiv.org/) covers preprints. [OpenAlex](https://openalex.org/) is an open catalog of 250M+ scholarly works that replaced Microsoft Academic. [OpenReview](https://openreview.net/) hosts ML conference papers with public reviews.
+**Other Databases.** [OpenAlex](https://openalex.org/) is an open catalog of 250M+ scholarly works that replaced Microsoft Academic.
 
 **Reference Managers.** For managing bibliographies rather than validating them, [Zotero](https://www.zotero.org/) is open-source with good browser integration. [JabRef](https://www.jabref.org/) is BibTeX-native. Both can export entries that bibval can then validate.
 
