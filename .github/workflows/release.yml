@@ -149,6 +149,11 @@ jobs:
       - name: Deploy to site
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+
+          # Prune old versions (keep only latest)
+          rm -rf site/releases/bibval/v*
+
+          # Deploy new version
           mkdir -p "site/releases/bibval/${VERSION}"
           cp release/* "site/releases/bibval/${VERSION}/"
           cp release/install.sh "site/releases/bibval/install.sh"
