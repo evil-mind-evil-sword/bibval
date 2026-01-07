@@ -40,7 +40,7 @@ jobs:
 
       - name: Build
         run: |
-          zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }}
+          zig build -Doptimize=ReleaseSmall -Dtarget=${{ matrix.target }}
           mv zig-out/bin/bibval ${{ matrix.artifact }}
 
       - name: Upload artifact
