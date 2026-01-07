@@ -4,13 +4,23 @@
 
 Validates bibliographic references by querying CrossRef, DBLP, Semantic Scholar, and OpenAlex.
 
-## Installation
+## Install
+
+```sh
+curl -fsSL https://evil-mind-evil-sword.github.io/releases/bibval/install.sh | sh
+```
+
+<details>
+<summary>From source</summary>
+
+Requires [Zig](https://ziglang.org/) 0.15.2+:
 
 ```bash
 zig build -Doptimize=ReleaseFast
 ```
 
 The binary is in `zig-out/bin/bibval`.
+</details>
 
 ## Why?
 
