@@ -1,6 +1,6 @@
 .{
     .name = .bibval,
-    .version = "26.1.10",
+    .version = "26.1.12",
     .fingerprint = 0x996d4631124c08cc,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{},
